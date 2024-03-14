@@ -1,0 +1,40 @@
+Program.Sub.Preflight.Start
+
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+
+Variable.Local.sSQL.Declare(String)
+Variable.Local.sRet.Declare
+V.Local.sDSN.Declare
+
+F.ODBC.Connection!con.OpenCompanyConnection()
+
+Function.Intrinsic.String.Build("Select PID from X_LOCK_FILE where REC_KEY={0}",variable.Passed.000003,variable.local.sSQL)
+Function.ODBC.Connection!con.ExecuteAndReturn(variable.Local.sSQL,variable.Local.sRet)
+
+Function.Intrinsic.UI.Sleep(30)
+
+Function.Intrinsic.Task.TerminatePID(variable.Local.sRet)
+
+F.Intrinsic.String.Build("Delete from X_LOCK_FILE where REC_KEY = {0}", V.Passed.000003, V.Local.sSQL)
+F.ODBC.Connection!con.Execute(V.Local.sSQL)
+
+Function.Global.General.CallWrapperAsync(50, PUR011GI/N)
+
+Function.Intrinsic.Control.CallSub(Unload)
+
+
+Program.Sub.Main.End
+
+Program.Sub.Unload.Start
+'Close all connections
+F.ODBC.Connection!con.Close
+F.Intrinsic.Control.End
+
+Program.Sub.Unload.End
+
+
+Program.Sub.Comments.Start
+${$0$}$PROJECT1$}$SUPERVSR$}$4/2/2019 9:28:38 AM$}$False
+Program.Sub.Comments.End
