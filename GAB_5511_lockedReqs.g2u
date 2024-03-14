@@ -1,0 +1,126 @@
+Program.Sub.ScreenSU.Start
+Gui.Locked_Requisitions..Create
+Gui.Locked_Requisitions..Size(9510,5865)
+Gui.Locked_Requisitions..MinX(0)
+Gui.Locked_Requisitions..MinY(0)
+Gui.Locked_Requisitions..Position(0,0)
+Gui.Locked_Requisitions..BackColor(-2147483633)
+Gui.Locked_Requisitions..MousePointer(0)
+Gui.Locked_Requisitions..Event(UnLoad,Unload)
+Gui.Locked_Requisitions.GsGridControl1.Create(GsGridControl)
+Gui.Locked_Requisitions.GsGridControl1.Size(8925,4005)
+Gui.Locked_Requisitions.GsGridControl1.Position(150,180)
+Gui.Locked_Requisitions.cmd1.Create(Button)
+Gui.Locked_Requisitions.cmd1.Size(1425,450)
+Gui.Locked_Requisitions.cmd1.Position(225,4335)
+Gui.Locked_Requisitions.cmd1.Caption("Delete")
+Gui.Locked_Requisitions.cmd1.Event(Click,DeleteLocks)
+Gui.Locked_Requisitions.cmd1.DefaultValue("")
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+V.Global.sSQLLocked.Declare(String)
+
+'Open connection to database
+F.ODBC.Connection!con.OpenCompanyConnection
+F.ODBC.Connection!conx.OpenCommonConnection
+
+'Build query to grab data from X_LOCK_FILE table
+V.Global.sSQLLocked.Set("select CAST(0 AS BIT) AS SEL, REC_KEY as 'REQUISITION', USER_ID as 'USER', F_DATE as 'DATE', LOCK_TIME as 'LOCK TIME', PID as PROCESSID from X_LOCK_FILE where LOCK_TYPE = 'PR'")
+
+'Load context menus and refresh/create datatable
+F.Intrinsic.Control.CallSub(Refresh)
+F.Intrinsic.Control.Callsub(SetContextMenus)
+
+Program.Sub.Main.End
+
+Program.Sub.SetContextMenus.Start
+
+Gui.Locked_Requisitions..ContextMenuCreate("ctxMain")
+Gui.Locked_Requisitions.GsGridControl1.ContextMenuAttach("ctxMain")
+Gui.Locked_Requisitions..ContextMenuAddItem("ctxMain","SelectAll",0,"Select All")
+Gui.Locked_Requisitions..ContextMenuAddItem("ctxMain","DeselectAll",0,"Deselect All")
+Gui.Locked_Requisitions..ContextMenuSetItemEventHandler("ctxMain","SelectAll","select_ALL")
+Gui.Locked_Requisitions..ContextMenuSetItemEventHandler("ctxMain","DeselectAll","deselect_ALL")
+
+Program.Sub.SetContextMenus.End
+
+Program.Sub.Refresh.Start
+'Check to see if the Datatable exists and if so close it
+F.Intrinsic.Control.If(V.DataTable.dtLockedReq.Exists,=,True)
+	F.Data.DataTable.Close("dtLockedReq")
+F.Intrinsic.Control.EndIf
+
+'Create DataTable
+F.Data.DataTable.CreateFromSQL("dtLockedReq","con",V.Global.sSQLLocked,True)
+
+'Create GridView from DataTable
+Gui.Locked_Requisitions.GsGridControl1.AddGridviewFromDatatable("gvLocked","dtLockedReq")
+Gui.Locked_Requisitions.GsGridControl1.SetColumnProperty("gvLocked","SEL","AllowEdit",True)
+Gui.Locked_Requisitions.GsGridControl1.SetColumnProperty("gvLocked","SEL","ReadOnly",False)
+
+'Show Locked PO Requisitions
+gui.Locked_Requisitions.GsGridControl1.MainView("gvLocked")
+Gui.Locked_Requisitions..Show
+
+Program.Sub.Refresh.End
+
+Program.Sub.DeleteLocks.Start
+V.Local.sSelRow.Declare
+V.Local.selReq.Declare
+V.Local.selPID.Declare
+V.Local.sDelReq.Declare
+V.Local.sDelPID.Declare
+V.Local.iCtrl.Declare
+
+'Get data from table and split into a variable
+F.Data.DataTable.Select(dtLockedReq,"Sel = True",V.Local.sSelRow)
+F.Intrinsic.String.Split(V.Local.sSelRow,*!*,V.Local.sSelRow)
+
+'Check for ***NORETURN*** else delete selected rows from X_FILE_LOCK and MENU_PROCESS tables
+F.Intrinsic.Control.If(V.Local.sSelRow,=,"***NORETURN***")
+	F.Intrinsic.UI.Msgbox("Please select a record(s) to delete")
+	
+	F.Intrinsic.Control.Else
+			F.Intrinsic.Control.For(V.Local.iCtrl,0,V.Local.sSelRow.UBound,1)
+			V.Local.selReq.Set(V.DataTable.dtLockedReq(V.Local.sSelRow(V.Local.iCtrl)).REQUISITION!FieldValTrim)
+			V.Local.selPID.Set(V.DataTable.dtLockedReq(V.Local.sSelRow(V.Local.iCtrl)).PROCESSID!FieldValTrim)
+			F.Intrinsic.String.Build("Delete from X_LOCK_FILE where LOCK_TYPE = 'PR' and REC_KEY = '{0}'",V.Local.selReq,V.Local.sDelReq)
+			F.Intrinsic.String.Build("Delete from MENU_PROCESS where JOB_STREAM_ID = '327' and PID = '{0}'",V.Local.selPID,V.Local.sDelPID)
+			F.ODBC.Connection!con.Execute(V.Local.sDelReq)
+			F.ODBC.Connection!conx.Execute(V.Local.sDelPID)
+			F.Intrinsic.Control.Next(V.Local.iCtrl)
+			
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.CallSub(Refresh)
+
+Program.Sub.DeleteLocks.End
+
+Program.Sub.select_All.Start
+
+F.Data.DataTable.SetValue("dtLockedReq", -1, "SEL", true)
+
+Program.Sub.select_ALL.End
+
+Program.Sub.deselect_ALL.Start
+
+F.Data.DataTable.SetValue("dtLockedReq", -1, "SEL", false)
+
+Program.Sub.deselect_ALL.End
+
+Program.Sub.Unload.Start
+'Close all open tasks/connections
+F.Intrinsic.Control.If(V.DataTable.dtLockedReq.Exists,=,True)
+	F.Data.DataTable.Close("dtLockedReq")
+F.Intrinsic.Control.EndIf
+
+F.ODBC.Connection!con.Close
+F.ODBC.Connection!conx.Close
+
+F.Intrinsic.Control.End
+
+Program.Sub.Unload.End
